@@ -1,7 +1,7 @@
 package com.ajinz.githubsearch.service;
 
-import com.ajinz.githubsearch.dto.GitHubSearchResponse;
-import com.ajinz.githubsearch.dto.SearchRequest;
+import com.ajinz.githubsearch.dto.github.GitHubSearchResponse;
+import com.ajinz.githubsearch.dto.github.GithubSearchRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,9 +29,9 @@ public class GitHubSearchService {
             .build();
   }
 
-  public Mono<GitHubSearchResponse> searchRepositories(SearchRequest searchRequest) {
-    logger.info("Searching repositories with query: {}", searchRequest.query());
-    String query = buildQuery(searchRequest.query(), searchRequest.language());
+  public Mono<GitHubSearchResponse> searchRepositories(GithubSearchRequest githubSearchRequest) {
+    logger.info("Searching repositories with query: {}", githubSearchRequest.query());
+    String query = buildQuery(githubSearchRequest.query(), githubSearchRequest.language());
 
     return webClient
         .get()
@@ -40,10 +40,10 @@ public class GitHubSearchService {
                 uriBuilder
                     .path("/search/repositories")
                     .queryParam("q", query)
-                    .queryParam("sort", searchRequest.sort())
-                    .queryParam("order", searchRequest.order())
-                    .queryParam("per_page", searchRequest.perPage())
-                    .queryParam("page", searchRequest.page())
+                    .queryParam("sort", githubSearchRequest.sort())
+                    .queryParam("order", githubSearchRequest.order())
+                    .queryParam("per_page", githubSearchRequest.perPage())
+                    .queryParam("page", githubSearchRequest.page())
                     .build())
         .retrieve()
         .bodyToMono(GitHubSearchResponse.class)

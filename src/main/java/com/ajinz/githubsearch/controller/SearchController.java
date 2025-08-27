@@ -1,8 +1,9 @@
 package com.ajinz.githubsearch.controller;
 
-import com.ajinz.githubsearch.dto.GitHubSearchResponse;
-import com.ajinz.githubsearch.dto.SearchRequest;
+import com.ajinz.githubsearch.dto.github.GitHubSearchResponse;
+import com.ajinz.githubsearch.dto.github.GithubSearchRequest;
 import com.ajinz.githubsearch.service.GitHubSearchService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -26,20 +27,14 @@ public class SearchController {
     return ResponseEntity.ok("OK");
   }
 
-  @GetMapping("/search/repositories")
+  @PostMapping("/search/repositories")
   public Mono<ResponseEntity<GitHubSearchResponse>> searchRepositories(
-      @RequestParam String query,
-      @RequestParam(required = false) String language,
-      @RequestParam(defaultValue = "stars") String sort,
-      @RequestParam(defaultValue = "desc") String order,
-      @RequestParam(defaultValue = "1") Integer page,
-      @RequestParam(defaultValue = "10", name = "per_page") Integer perPage) {
+      @Valid @RequestBody GithubSearchRequest githubSearchRequest) {
 
-    SearchRequest searchRequest = new SearchRequest(query, language, sort, order, page, perPage);
-    logger.info("Received GET search request for query: {}", query);
+    logger.info("Received POST search request for query: {}", githubSearchRequest.query());
 
     return gitHubSearchService
-        .searchRepositories(searchRequest)
+        .searchRepositories(githubSearchRequest)
         .map(ResponseEntity::ok)
         .onErrorReturn(ResponseEntity.internalServerError().build());
   }

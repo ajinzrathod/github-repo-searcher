@@ -1,6 +1,13 @@
 package com.ajinz.githubsearch.controller;
 
-import com.ajinz.githubsearch.dto.SearchRequest;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.ajinz.githubsearch.dto.github.GithubSearchRequest;
+import com.ajinz.githubsearch.dto.github.Order;
+import com.ajinz.githubsearch.dto.github.Sort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,11 +16,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,16 +34,16 @@ class SearchControllerIntegrationTest {
   }
 
   @Test
-  void shouldSearchRepositoriesWithGetRequest() throws Exception {
+  void shouldSearchRepositoriesWithPostRequest() throws Exception {
+    GithubSearchRequest searchRequest =
+        new GithubSearchRequest("spring", "java", Sort.STARS, Order.DESC, 1, 5);
+
     MvcResult mvcResult =
         mockMvc
             .perform(
-                get("/api/github/search/repositories")
-                    .param("query", "spring")
-                    .param("language", "java")
-                    .param("sort", "stars")
-                    .param("order", "desc")
-                    .param("per_page", "5"))
+                post("/api/github/search/repositories")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(searchRequest)))
             .andExpect(request().asyncStarted())
             .andReturn();
 
@@ -54,13 +56,14 @@ class SearchControllerIntegrationTest {
 
   @Test
   void shouldReturnValidationErrorForInvalidRequest() throws Exception {
-    SearchRequest invalidNoOfPagesRequest = new SearchRequest("OpenCV", null, "stars", "desc", 0, 200);
+    GithubSearchRequest invalidRequest =
+        new GithubSearchRequest("OpenCV", null, Sort.FORKS, Order.DESC, 35, 200);
 
     mockMvc
         .perform(
             post("/api/github/search/repositories")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(invalidNoOfPagesRequest)))
+                .content(objectMapper.writeValueAsString(invalidRequest)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
   }

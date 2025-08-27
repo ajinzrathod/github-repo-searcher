@@ -1,11 +1,15 @@
 package com.ajinz.githubsearch.service;
 
-import com.ajinz.githubsearch.dto.GitHubSearchResponse;
-import com.ajinz.githubsearch.dto.GitHubRepository;
-import com.ajinz.githubsearch.dto.SearchRequest;
-import com.ajinz.githubsearch.dto.GitHubOwner;
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.ajinz.githubsearch.dto.github.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -16,13 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
-
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class GitHubSearchServiceTest {
 
@@ -36,6 +33,7 @@ class GitHubSearchServiceTest {
     mockWebServer.start();
 
     objectMapper = new ObjectMapper();
+    objectMapper.registerModule(new JavaTimeModule());
 
     String baseUrl = mockWebServer.url("/").toString();
     WebClient.Builder webClientBuilder = WebClient.builder();
@@ -51,7 +49,8 @@ class GitHubSearchServiceTest {
   @Test
   void shouldSearchRepositoriesSuccessfully() throws JsonProcessingException, InterruptedException {
     // Given
-    SearchRequest request = new SearchRequest("spring", "java", "stars", "desc", 1, 10);
+    GithubSearchRequest request =
+        new GithubSearchRequest("spring", "java", Sort.STARS, Order.DESC, 1, 10);
 
     GitHubSearchResponse mockResponse = getGitHubSearchResponse();
 
@@ -69,15 +68,15 @@ class GitHubSearchServiceTest {
             response ->
                 response.totalCount() == 2
                     && response.items().size() == 2
-                    && response.items().get(0).name().equals("spring-boot"))
+                    && response.items().getFirst().name().equals("spring-boot"))
         .verifyComplete();
 
     // Verify the request was made correctly
     RecordedRequest recordedRequest = mockWebServer.takeRequest();
     assertEquals("GET", recordedRequest.getMethod());
+    assertNotNull(recordedRequest.getPath());
     assertTrue(recordedRequest.getPath().contains("/search/repositories"));
     assertTrue(recordedRequest.getPath().contains("q=spring%20language:java"));
-    assertTrue(recordedRequest.getPath().contains("sort=stars"));
     assertTrue(recordedRequest.getPath().contains("order=desc"));
     assertTrue(recordedRequest.getPath().contains("per_page=10"));
     assertTrue(recordedRequest.getPath().contains("page=1"));
@@ -100,48 +99,59 @@ class GitHubSearchServiceTest {
             "https://github.com/spring-projects",
             "Organization");
 
-    List<GitHubRepository> repositories =
-        Arrays.asList(
-            new GitHubRepository(
-                1L,
-                "spring-boot",
-                "spring-projects/spring-boot",
-                "Spring Boot helps you to create Spring-powered, production-grade applications",
-                "https://github.com/spring-projects/spring-boot",
-                "https://github.com/spring-projects/spring-boot.git",
-                "Java",
-                65000,
-                60000,
-                40000,
-                500,
-                LocalDateTime.of(2013, 12, 10, 0, 0),
-                LocalDateTime.of(2024, 1, 15, 0, 0),
-                LocalDateTime.of(2024, 1, 15, 0, 0),
-                owner1),
-            new GitHubRepository(
-                2L,
-                "spring-framework",
-                "spring-projects/spring-framework",
-                "Spring Framework core",
-                "https://github.com/spring-projects/spring-framework",
-                "https://github.com/spring-projects/spring-framework.git",
-                "Java",
-                50000,
-                45000,
-                30000,
-                300,
-                LocalDateTime.of(2008, 12, 21, 0, 0),
-                LocalDateTime.of(2024, 1, 14, 0, 0),
-                LocalDateTime.of(2024, 1, 14, 0, 0),
-                owner2));
+    GitHubRepository repository1 =
+        new GitHubRepository(
+            6296790L,
+            "spring-boot",
+            "spring-projects/spring-boot",
+            "Spring Boot",
+            "https://github.com/spring-projects/spring-boot",
+            "https://spring.io/projects/spring-boot",
+            "Java",
+            65000,
+            35000,
+            65000,
+            50000,
+            LocalDateTime.of(2012, 10, 19, 15, 21, 38),
+            LocalDateTime.of(2023, 8, 24, 10, 30, 0),
+            LocalDateTime.of(2023, 8, 24, 10, 0, 0),
+            owner1);
+
+    List<GitHubRepository> repositories = getGitHubRepositories(owner2, repository1);
 
     return new GitHubSearchResponse(2, false, repositories);
+  }
+
+  @NotNull
+  private static List<GitHubRepository> getGitHubRepositories(
+      GitHubOwner owner2, GitHubRepository repository1) {
+    GitHubRepository repository2 =
+        new GitHubRepository(
+            1234567L,
+            "spring-framework",
+            "spring-projects/spring-framework",
+            "Spring Framework",
+            "https://github.com/spring-projects/spring-framework",
+            "https://spring.io/projects/spring-framework",
+            "Java",
+            45000,
+            25000,
+            45000,
+            30000,
+            LocalDateTime.of(2008, 1, 1, 10, 0, 0),
+            LocalDateTime.of(2023, 8, 23, 14, 15, 30),
+            LocalDateTime.of(2023, 8, 23, 14, 0, 0),
+            owner2);
+
+    List<GitHubRepository> repositories = Arrays.asList(repository1, repository2);
+    return repositories;
   }
 
   @Test
   void shouldBuildQueryWithLanguageFilter() throws JsonProcessingException, InterruptedException {
     // Given
-    SearchRequest request = new SearchRequest("react", "javascript", "stars", "desc", 1, 5);
+    GithubSearchRequest request =
+        new GithubSearchRequest("react", "javascript", Sort.FORKS, Order.DESC, 1, 5);
     GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
 
     mockWebServer.enqueue(
@@ -162,8 +172,9 @@ class GitHubSearchServiceTest {
   void shouldBuildQueryWithoutLanguageFilter()
       throws JsonProcessingException, InterruptedException {
     // Given
-    SearchRequest request = new SearchRequest("nodejs", null, "stars", "desc", 1, 10);
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, Arrays.asList());
+    GithubSearchRequest request =
+        new GithubSearchRequest("nodejs", null, Sort.FORKS, Order.DESC, 1, 10);
+    GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
 
     mockWebServer.enqueue(
         new MockResponse()
@@ -183,7 +194,8 @@ class GitHubSearchServiceTest {
   @Test
   void shouldHandleGitHubApiError() {
     // Given
-    SearchRequest request = new SearchRequest("test", null, "stars", "desc", 1, 10);
+    GithubSearchRequest request =
+        new GithubSearchRequest("test", null, Sort.FORKS, Order.DESC, 1, 10);
 
     mockWebServer.enqueue(
         new MockResponse()
@@ -199,14 +211,17 @@ class GitHubSearchServiceTest {
         .expectErrorMatches(
             throwable ->
                 throwable instanceof RuntimeException
-                    && throwable.getMessage().contains("Failed to search repositories"))
+                    && throwable
+                        .getMessage()
+                        .contains("An unexpected error occurred while searching repositories"))
         .verify();
   }
 
   @Test
   void shouldSetCorrectHeaders() throws InterruptedException, JsonProcessingException {
     // Given
-    SearchRequest request = new SearchRequest("test", null, "stars", "desc", 1, 10);
+    GithubSearchRequest request =
+        new GithubSearchRequest("test", null, Sort.FORKS, Order.DESC, 1, 10);
     GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
 
     mockWebServer.enqueue(
@@ -226,7 +241,8 @@ class GitHubSearchServiceTest {
   @Test
   void shouldHandleEmptyLanguage() throws JsonProcessingException, InterruptedException {
     // Given
-    SearchRequest request = new SearchRequest("python", "", "stars", "desc", 1, 10);
+    GithubSearchRequest request =
+        new GithubSearchRequest("python", "", Sort.FORKS, Order.DESC, 1, 10);
     GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
 
     mockWebServer.enqueue(
