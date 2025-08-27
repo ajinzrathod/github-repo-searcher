@@ -143,8 +143,7 @@ class GitHubSearchServiceTest {
             LocalDateTime.of(2023, 8, 23, 14, 0, 0),
             owner2);
 
-    List<GitHubRepository> repositories = Arrays.asList(repository1, repository2);
-    return repositories;
+    return Arrays.asList(repository1, repository2);
   }
 
   @Test

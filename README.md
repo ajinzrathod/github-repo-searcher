@@ -1,6 +1,6 @@
 # GitHub Search API
 
-A Spring Boot application that provides a REST API for searching GitHub repositories.
+A Spring Boot application that provides a REST API for searching GitHub repositories with PostgreSQL database storage.
 
 ## API Endpoints
 
@@ -82,16 +82,74 @@ curl -X POST http://localhost:8080/api/github/search/repositories \
 
 - Java 21
 - Gradle 8.x
+- Docker and Docker Compose (for PostgreSQL)
+
+### Database Setup
+
+This application uses PostgreSQL as the database. The easiest way to run it is using Docker Compose.
+
+#### 1. Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+```env
+POSTGRES_DB=postgres
+POSTGRES_USER=githubuser
+POSTGRES_PASSWORD=yourpassword
+```
+
+#### 2. Start PostgreSQL
+
+```bash
+docker-compose up -d postgres
+```
+
+This will start PostgreSQL on port 5432. The database will be created automatically with the credentials from your
+`.env` file.
+
+#### 3. Verify Database Connection
+
+You can verify PostgreSQL is running:
+
+```bash
+docker ps
+```
+
+You should see the `githubsearch-postgres` container running.
 
 ### Start the Application
 
 ```bash
-./gradlew bootRun
+# This will start both PostgreSQL and the application
+docker-compose up
+```
+
+### Application URLs
+
+- **Application**: http://localhost:8080
+- **Health Check**: http://localhost:8080/health
+- **PostgreSQL**: localhost:5432
+
+### Database Schema
+
+The application automatically creates the required database tables using Flyway migrations on startup. The schema
+includes:
+
+- Repository details storage (ID, name, description, owner, language, stars, forks, etc.)
+- Full GitHub API response storage for complete data preservation
+- Optimized indexes for filtering and sorting operations
+
+### Stopping the Application
+
+```bash
+# Stop all services
+docker-compose down
 ```
 
 ## Running Tests
 
 ```bash
+./gradlew bootRun # required if any DB migrations are pending
 ./gradlew test
 ./gradlew integrationTest
 ```
