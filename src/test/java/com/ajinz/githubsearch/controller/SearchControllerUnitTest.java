@@ -38,7 +38,7 @@ class SearchControllerUnitTest {
   @Test
   void shouldReturnSuccessfulResponseForPostRequest() {
     // Given
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(2, false, Collections.emptyList());
+    GitHubSearchResponse mockResponse = new GitHubSearchResponse(false, Collections.emptyList());
     GithubSearchRequest searchRequest =
         new GithubSearchRequest("react", "javascript", Sort.FORKS, Order.DESC, 1, 5);
 
@@ -89,7 +89,7 @@ class SearchControllerUnitTest {
   @Test
   void shouldPassCorrectSearchRequestToService() {
     // Given
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(1, false, Collections.emptyList());
+    GitHubSearchResponse mockResponse = new GitHubSearchResponse(false, Collections.emptyList());
     GithubSearchRequest searchRequest =
         new GithubSearchRequest("spring boot", "java", Sort.FORKS, Order.DESC, 2, 20);
 

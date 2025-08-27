@@ -1,21 +1,74 @@
 package com.ajinz.githubsearch.dto.github;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-public record GitHubRepository(
-    Long id,
-    String name,
-    @JsonProperty("full_name") String fullName,
-    String description,
-    @JsonProperty("html_url") String url,
-    String homepage,
-    String language,
-    @JsonProperty("stargazers_count") Integer stargazersCount,
-    @JsonProperty("forks_count") Integer forksCount,
-    @JsonProperty("watchers_count") Integer watchersCount,
-    Integer size,
-    @JsonProperty("created_at") LocalDateTime createdAt,
-    @JsonProperty("updated_at") LocalDateTime updatedAt,
-    @JsonProperty("pushed_at") LocalDateTime pushedAt,
-    GitHubOwner owner) {}
+@Entity
+@Table(name = "github_repository")
+public class GitHubRepository {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+
+  @JsonProperty("id")
+  @Column(name = "github_repo_id")
+  private Long githubRepoId;
+
+  @JsonProperty("name")
+  @Column(name = "repo_name", length = 255)
+  private String repoName;
+
+  @JsonProperty("description")
+  @Column(columnDefinition = "TEXT")
+  private String description;
+
+  @JsonProperty("owner")
+  @Column(name = "owner_name", length = 255)
+  private String ownerName;
+
+  @JsonProperty("language")
+  @Column(name = "programming_language", length = 100)
+  private String programmingLanguage;
+
+  @JsonProperty("stargazers_count")
+  @Column(name = "stars_count")
+  private Integer starsCount = 0;
+
+  @JsonProperty("forks_count")
+  @Column(name = "forks_count")
+  private Integer forksCount = 0;
+
+  @JsonProperty("updated_at")
+  @Column(name = "git_repo_last_updated_date")
+  private LocalDateTime gitRepoLastUpdatedDate;
+
+  @Column(name = "created_at")
+  private LocalDateTime createdAt = LocalDateTime.now();
+
+  @Column(name = "updated_at")
+  private LocalDateTime updatedAt = LocalDateTime.now();
+
+  @JsonProperty("full_url")
+  @Transient
+  private LocalDateTime full_url;
+
+  public GitHubRepository() {}
+
+  @PreUpdate
+  public void preUpdate() {
+    this.updatedAt = LocalDateTime.now();
+  }
+
+  @JsonProperty("owner")
+  public void setOwner(java.util.Map<String, Object> owner) {
+    if (owner != null) {
+      this.ownerName = (String) owner.get("login");
+    }
+  }
+
+  @JsonProperty("full_url")
+  public String setFullUrl() {
+    return "https://github.com/" + this.ownerName + "/" + this.repoName;
+  }
+}

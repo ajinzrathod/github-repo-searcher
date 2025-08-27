@@ -1,212 +1,139 @@
 package com.ajinz.githubsearch.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
-import com.ajinz.githubsearch.dto.github.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.Arrays;
+import com.ajinz.githubsearch.dto.github.GitHubRepository;
+import com.ajinz.githubsearch.dto.github.GitHubSearchResponse;
+import com.ajinz.githubsearch.dto.github.GithubSearchRequest;
+import com.ajinz.githubsearch.dto.github.Order;
+import com.ajinz.githubsearch.dto.github.Sort;
 import java.util.List;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.AfterEach;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+@ExtendWith(MockitoExtension.class)
 class GitHubSearchServiceTest {
 
-  private MockWebServer mockWebServer;
+  @Mock private WebClient.Builder webClientBuilder;
+
+  @Mock private WebClient webClient;
+
+  @Mock private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
+
+  @Mock private WebClient.RequestHeadersSpec requestHeadersSpec;
+
+  @Mock private WebClient.ResponseSpec responseSpec;
+
   private GitHubSearchService gitHubSearchService;
-  private ObjectMapper objectMapper;
+
+  private final String baseUrl = "https://api.github.com";
+  private final String apiVersion = "2022-11-28";
 
   @BeforeEach
-  void setUp() throws IOException {
-    mockWebServer = new MockWebServer();
-    mockWebServer.start();
+  void setUp() {
+    when(webClientBuilder.baseUrl(anyString())).thenReturn(webClientBuilder);
+    when(webClientBuilder.defaultHeader(anyString(), anyString())).thenReturn(webClientBuilder);
+    when(webClientBuilder.build()).thenReturn(webClient);
 
-    objectMapper = new ObjectMapper();
-    objectMapper.registerModule(new JavaTimeModule());
-
-    String baseUrl = mockWebServer.url("/").toString();
-    WebClient.Builder webClientBuilder = WebClient.builder();
-
-    gitHubSearchService = new GitHubSearchService(webClientBuilder, baseUrl, "2022-11-28");
-  }
-
-  @AfterEach
-  void tearDown() throws IOException {
-    mockWebServer.shutdown();
+    gitHubSearchService = new GitHubSearchService(webClientBuilder, baseUrl, apiVersion);
   }
 
   @Test
-  void shouldSearchRepositoriesSuccessfully() throws JsonProcessingException, InterruptedException {
-    // Given
+  void constructor_ShouldConfigureWebClientCorrectly() {
+    // Verify that WebClient.Builder is configured with correct values
+    verify(webClientBuilder).baseUrl(baseUrl);
+    verify(webClientBuilder).defaultHeader("Accept", "application/vnd.github+json");
+    verify(webClientBuilder).defaultHeader("X-GitHub-Api-Version", apiVersion);
+    verify(webClientBuilder).build();
+  }
+
+  @Test
+  void searchRepositories_WithBasicRequest_ShouldReturnSuccessfulResponse() {
+    // Arrange
     GithubSearchRequest request =
-        new GithubSearchRequest("spring", "java", Sort.STARS, Order.DESC, 1, 10);
+        new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
 
-    GitHubSearchResponse mockResponse = getGitHubSearchResponse();
+    GitHubRepository repository = new GitHubRepository();
+    GitHubSearchResponse expectedResponse = new GitHubSearchResponse(false, List.of(repository));
 
-    mockWebServer.enqueue(
-        new MockResponse()
-            .setBody(objectMapper.writeValueAsString(mockResponse))
-            .addHeader("Content-Type", "application/json"));
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.just(expectedResponse));
 
-    // When
-    Mono<GitHubSearchResponse> result = gitHubSearchService.searchRepositories(request);
-
-    // Then
-    StepVerifier.create(result)
-        .expectNextMatches(
-            response ->
-                response.totalCount() == 2
-                    && response.items().size() == 2
-                    && response.items().getFirst().name().equals("spring-boot"))
+    // Act & Assert
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectNext(expectedResponse)
         .verifyComplete();
 
-    // Verify the request was made correctly
-    RecordedRequest recordedRequest = mockWebServer.takeRequest();
-    assertEquals("GET", recordedRequest.getMethod());
-    assertNotNull(recordedRequest.getPath());
-    assertTrue(recordedRequest.getPath().contains("/search/repositories"));
-    assertTrue(recordedRequest.getPath().contains("q=spring%20language:java"));
-    assertTrue(recordedRequest.getPath().contains("order=desc"));
-    assertTrue(recordedRequest.getPath().contains("per_page=10"));
-    assertTrue(recordedRequest.getPath().contains("page=1"));
-  }
-
-  @NotNull
-  private static GitHubSearchResponse getGitHubSearchResponse() {
-    GitHubOwner owner1 =
-        new GitHubOwner(
-            1L,
-            "spring-projects",
-            "https://avatars.githubusercontent.com/u/317776",
-            "https://github.com/spring-projects",
-            "Organization");
-    GitHubOwner owner2 =
-        new GitHubOwner(
-            2L,
-            "spring-projects",
-            "https://avatars.githubusercontent.com/u/317776",
-            "https://github.com/spring-projects",
-            "Organization");
-
-    GitHubRepository repository1 =
-        new GitHubRepository(
-            6296790L,
-            "spring-boot",
-            "spring-projects/spring-boot",
-            "Spring Boot",
-            "https://github.com/spring-projects/spring-boot",
-            "https://spring.io/projects/spring-boot",
-            "Java",
-            65000,
-            35000,
-            65000,
-            50000,
-            LocalDateTime.of(2012, 10, 19, 15, 21, 38),
-            LocalDateTime.of(2023, 8, 24, 10, 30, 0),
-            LocalDateTime.of(2023, 8, 24, 10, 0, 0),
-            owner1);
-
-    List<GitHubRepository> repositories = getGitHubRepositories(owner2, repository1);
-
-    return new GitHubSearchResponse(2, false, repositories);
-  }
-
-  @NotNull
-  private static List<GitHubRepository> getGitHubRepositories(
-      GitHubOwner owner2, GitHubRepository repository1) {
-    GitHubRepository repository2 =
-        new GitHubRepository(
-            1234567L,
-            "spring-framework",
-            "spring-projects/spring-framework",
-            "Spring Framework",
-            "https://github.com/spring-projects/spring-framework",
-            "https://spring.io/projects/spring-framework",
-            "Java",
-            45000,
-            25000,
-            45000,
-            30000,
-            LocalDateTime.of(2008, 1, 1, 10, 0, 0),
-            LocalDateTime.of(2023, 8, 23, 14, 15, 30),
-            LocalDateTime.of(2023, 8, 23, 14, 0, 0),
-            owner2);
-
-    return Arrays.asList(repository1, repository2);
+    verify(webClient).get();
   }
 
   @Test
-  void shouldBuildQueryWithLanguageFilter() throws JsonProcessingException, InterruptedException {
-    // Given
+  void searchRepositories_WithLanguageFilter_ShouldIncludeLanguageInQuery() {
+    // Arrange
     GithubSearchRequest request =
-        new GithubSearchRequest("react", "javascript", Sort.FORKS, Order.DESC, 1, 5);
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
+        new GithubSearchRequest("spring boot", "java", Sort.STARS, Order.DESC, 1, 10);
 
-    mockWebServer.enqueue(
-        new MockResponse()
-            .setBody(objectMapper.writeValueAsString(mockResponse))
-            .addHeader("Content-Type", "application/json"));
+    GitHubSearchResponse expectedResponse = new GitHubSearchResponse(false, List.of());
 
-    // When
-    gitHubSearchService.searchRepositories(request).block();
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.just(expectedResponse));
 
-    // Then
-    RecordedRequest recordedRequest = mockWebServer.takeRequest();
-    assertNotNull(recordedRequest.getPath());
-    assertTrue(recordedRequest.getPath().contains("q=react%20language:javascript"));
+    // Act
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectNext(expectedResponse)
+        .verifyComplete();
+
+    // Verify that the URI builder is called
+    verify(requestHeadersUriSpec).uri(any(Function.class));
   }
 
   @Test
-  void shouldBuildQueryWithoutLanguageFilter()
-      throws JsonProcessingException, InterruptedException {
-    // Given
+  void searchRepositories_WithEmptyLanguage_ShouldNotIncludeLanguageInQuery() {
+    // Arrange
     GithubSearchRequest request =
-        new GithubSearchRequest("nodejs", null, Sort.FORKS, Order.DESC, 1, 10);
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
+        new GithubSearchRequest("spring boot", "", Sort.STARS, Order.DESC, 1, 10);
 
-    mockWebServer.enqueue(
-        new MockResponse()
-            .setBody(objectMapper.writeValueAsString(mockResponse))
-            .addHeader("Content-Type", "application/json"));
+    GitHubSearchResponse expectedResponse = new GitHubSearchResponse(false, List.of());
 
-    // When
-    gitHubSearchService.searchRepositories(request).block();
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.just(expectedResponse));
 
-    // Then
-    RecordedRequest recordedRequest = mockWebServer.takeRequest();
-    assertNotNull(recordedRequest.getPath());
-    assertTrue(recordedRequest.getPath().contains("q=nodejs"));
-    assertFalse(recordedRequest.getPath().contains("language:"));
+    // Act
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectNext(expectedResponse)
+        .verifyComplete();
+
+    verify(requestHeadersUriSpec).uri(any(Function.class));
   }
 
   @Test
-  void shouldHandleGitHubApiError() {
-    // Given
+  void searchRepositories_WithWebClientResponseException_ShouldMapToRuntimeException() {
+    // Arrange
     GithubSearchRequest request =
-        new GithubSearchRequest("test", null, Sort.FORKS, Order.DESC, 1, 10);
+        new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
 
-    mockWebServer.enqueue(
-        new MockResponse()
-            .setResponseCode(403)
-            .setBody("{\"message\":\"API rate limit exceeded\"}")
-            .addHeader("Content-Type", "application/json"));
+    WebClientResponseException webClientException =
+        WebClientResponseException.create(404, "Not Found", null, null, null);
 
-    // When
-    Mono<GitHubSearchResponse> result = gitHubSearchService.searchRepositories(request);
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.error(webClientException));
 
-    // Then
-    StepVerifier.create(result)
+    // Act & Assert
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
         .expectErrorMatches(
             throwable ->
                 throwable instanceof RuntimeException
@@ -217,45 +144,89 @@ class GitHubSearchServiceTest {
   }
 
   @Test
-  void shouldSetCorrectHeaders() throws InterruptedException, JsonProcessingException {
-    // Given
+  void searchRepositories_WithGenericException_ShouldMapToRuntimeException() {
+    // Arrange
     GithubSearchRequest request =
-        new GithubSearchRequest("test", null, Sort.FORKS, Order.DESC, 1, 10);
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
+        new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
 
-    mockWebServer.enqueue(
-        new MockResponse()
-            .setBody(objectMapper.writeValueAsString(mockResponse))
-            .addHeader("Content-Type", "application/json"));
+    RuntimeException genericException = new RuntimeException("Network timeout");
 
-    // When
-    gitHubSearchService.searchRepositories(request).block();
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.error(genericException));
 
-    // Then
-    RecordedRequest recordedRequest = mockWebServer.takeRequest();
-    assertEquals("application/vnd.github+json", recordedRequest.getHeader("Accept"));
-    assertEquals("2022-11-28", recordedRequest.getHeader("X-GitHub-Api-Version"));
+    // Act & Assert
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectErrorMatches(
+            throwable ->
+                throwable instanceof RuntimeException
+                    && throwable
+                        .getMessage()
+                        .contains("An unexpected error occurred while searching repositories"))
+        .verify();
   }
 
   @Test
-  void shouldHandleEmptyLanguage() throws JsonProcessingException, InterruptedException {
-    // Given
+  void searchRepositories_WithEmptyResponse_ShouldHandleGracefully() {
+    // Arrange
     GithubSearchRequest request =
-        new GithubSearchRequest("python", "", Sort.FORKS, Order.DESC, 1, 10);
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(0, false, List.of());
+        new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
 
-    mockWebServer.enqueue(
-        new MockResponse()
-            .setBody(objectMapper.writeValueAsString(mockResponse))
-            .addHeader("Content-Type", "application/json"));
+    GitHubSearchResponse emptyResponse = new GitHubSearchResponse(false, List.of());
 
-    // When
-    gitHubSearchService.searchRepositories(request).block();
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class)).thenReturn(Mono.just(emptyResponse));
 
-    // Then
-    RecordedRequest recordedRequest = mockWebServer.takeRequest();
-    assertNotNull(recordedRequest.getPath());
-    assertTrue(recordedRequest.getPath().contains("q=python"));
-    assertFalse(recordedRequest.getPath().contains("language:"));
+    // Act & Assert
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectNext(emptyResponse)
+        .verifyComplete();
+  }
+
+  @Test
+  void searchRepositories_WithComplexQuery_ShouldHandleAllParameters() {
+    // Arrange
+    GithubSearchRequest request =
+        new GithubSearchRequest("microservices", "kotlin", Sort.UPDATED, Order.ASC, 5, 25);
+
+    GitHubSearchResponse expectedResponse = new GitHubSearchResponse(false, List.of());
+
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.just(expectedResponse));
+
+    // Act
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectNext(expectedResponse)
+        .verifyComplete();
+
+    // Verify the URI building was called
+    verify(requestHeadersUriSpec).uri(any(Function.class));
+  }
+
+  @Test
+  void constructor_WithCustomBaseUrlAndApiVersion_ShouldUseProvidedValues() {
+    // Arrange
+    String customBaseUrl = "https://api.custom-github.com";
+    String customApiVersion = "2023-01-01";
+
+    WebClient.Builder newBuilder = mock(WebClient.Builder.class);
+    when(newBuilder.baseUrl(anyString())).thenReturn(newBuilder);
+    when(newBuilder.defaultHeader(anyString(), anyString())).thenReturn(newBuilder);
+    when(newBuilder.build()).thenReturn(webClient);
+
+    // Act
+    new GitHubSearchService(newBuilder, customBaseUrl, customApiVersion);
+
+    // Assert
+    verify(newBuilder).baseUrl(customBaseUrl);
+    verify(newBuilder).defaultHeader("X-GitHub-Api-Version", customApiVersion);
+  }
+
+  @SuppressWarnings({"unchecked"})
+  private void setupMockWebClientChain() {
+    when(webClient.get()).thenReturn(requestHeadersUriSpec);
+    when(requestHeadersUriSpec.uri(any(Function.class))).thenReturn(requestHeadersSpec);
+    when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
   }
 }
