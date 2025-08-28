@@ -114,4 +114,33 @@ public class GitHubRepository {
   public Long getGithubRepoId() {
     return githubRepoId;
   }
+
+  // Additional getters for testing purposes
+  public String getRepoName() {
+    return repoName;
+  }
+
+  public String getOwnerName() {
+    return ownerName;
+  }
+
+  public String getDescription() {
+    return description;
+  }
+
+  public String getProgrammingLanguage() {
+    return programmingLanguage;
+  }
+
+  public Integer getStarsCount() {
+    return starsCount;
+  }
+
+  public Integer getForksCount() {
+    return forksCount;
+  }
+
+  public LocalDateTime getGitRepoLastUpdatedDate() {
+    return gitRepoLastUpdatedDate;
+  }
 }
