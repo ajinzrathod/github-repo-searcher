@@ -10,8 +10,10 @@ import com.ajinz.githubsearch.dto.github.GitHubSearchResponse;
 import com.ajinz.githubsearch.dto.github.GithubSearchRequest;
 import com.ajinz.githubsearch.dto.github.Order;
 import com.ajinz.githubsearch.dto.github.Sort;
+import com.ajinz.githubsearch.service.GitHubRepositoryService;
 import com.ajinz.githubsearch.service.GitHubSearchService;
 import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -23,13 +25,14 @@ import reactor.core.publisher.Mono;
 class SearchControllerUnitTest {
 
   @Mock private GitHubSearchService gitHubSearchService;
+  @Mock private GitHubRepositoryService gitHubRepositoryService;
 
   private SearchController searchController;
 
   @BeforeEach
   void setUp() {
     try (var mocks = MockitoAnnotations.openMocks(this)) {
-      searchController = new SearchController(gitHubSearchService);
+      searchController = new SearchController(gitHubSearchService, gitHubRepositoryService);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -101,5 +104,24 @@ class SearchControllerUnitTest {
 
     // Then - Verify the SearchRequest was passed correctly
     verify(gitHubSearchService).searchRepositories(searchRequest);
+  }
+
+  @Test
+  void shouldReturnAllSavedRepositories() {
+    // Given
+    List<com.ajinz.githubsearch.dto.github.GitHubRepository> mockRepositories =
+        Collections.emptyList();
+
+    when(gitHubRepositoryService.getAllSavedRepositories()).thenReturn(mockRepositories);
+
+    // When
+    ResponseEntity<List<com.ajinz.githubsearch.dto.github.GitHubRepository>> response =
+        searchController.getAllSavedRepositories();
+
+    // Then
+    assertNotNull(response);
+    assertEquals(HttpStatus.OK, response.getStatusCode());
+    assertEquals(mockRepositories, response.getBody());
+    verify(gitHubRepositoryService).getAllSavedRepositories();
   }
 }

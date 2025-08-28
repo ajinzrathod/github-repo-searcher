@@ -177,6 +177,76 @@ class GitHubRepositoryServiceTest {
     verify(gitHubRepositoryRepository).saveAll(expectedNewRepos);
   }
 
+  @Test
+  void shouldReturnAllSavedRepositories() {
+    // Given
+    GitHubRepository repo1 = createGitHubRepository(1L, "spring-boot", "spring-projects");
+    GitHubRepository repo2 = createGitHubRepository(2L, "react", "facebook");
+    GitHubRepository repo3 = createGitHubRepository(3L, "vue", "vuejs");
+    List<GitHubRepository> expectedRepositories = Arrays.asList(repo1, repo2, repo3);
+
+    when(gitHubRepositoryRepository.findAll()).thenReturn(expectedRepositories);
+
+    // When
+    List<GitHubRepository> result = gitHubRepositoryService.getAllSavedRepositories();
+
+    // Then
+    assertNotNull(result);
+    assertEquals(3, result.size());
+    assertEquals(expectedRepositories, result);
+    verify(gitHubRepositoryRepository).findAll();
+  }
+
+  @Test
+  void shouldReturnEmptyListWhenNoRepositoriesSaved() {
+    // Given
+    List<GitHubRepository> emptyList = Collections.emptyList();
+    when(gitHubRepositoryRepository.findAll()).thenReturn(emptyList);
+
+    // When
+    List<GitHubRepository> result = gitHubRepositoryService.getAllSavedRepositories();
+
+    // Then
+    assertNotNull(result);
+    assertTrue(result.isEmpty());
+    assertEquals(0, result.size());
+    verify(gitHubRepositoryRepository).findAll();
+  }
+
+  @Test
+  void shouldHandleRepositoryExceptionWhenGettingAllRepositories() {
+    // Given
+    when(gitHubRepositoryRepository.findAll())
+        .thenThrow(new RuntimeException("Database connection error"));
+
+    // When & Then
+    assertThrows(RuntimeException.class, () -> gitHubRepositoryService.getAllSavedRepositories());
+
+    verify(gitHubRepositoryRepository).findAll();
+  }
+
+  @Test
+  void shouldReturnRepositoriesInCorrectOrder() {
+    // Given - repositories returned by database in specific order
+    GitHubRepository repo1 = createGitHubRepository(100L, "zzz-repo", "owner1");
+    GitHubRepository repo2 = createGitHubRepository(50L, "aaa-repo", "owner2");
+    GitHubRepository repo3 = createGitHubRepository(75L, "mmm-repo", "owner3");
+    List<GitHubRepository> databaseOrder = Arrays.asList(repo1, repo2, repo3);
+
+    when(gitHubRepositoryRepository.findAll()).thenReturn(databaseOrder);
+
+    // When
+    List<GitHubRepository> result = gitHubRepositoryService.getAllSavedRepositories();
+
+    // Then - should return repositories in the same order as database
+    assertNotNull(result);
+    assertEquals(3, result.size());
+    assertEquals(repo1, result.get(0));
+    assertEquals(repo2, result.get(1));
+    assertEquals(repo3, result.get(2));
+    verify(gitHubRepositoryRepository).findAll();
+  }
+
   private GitHubRepository createGitHubRepository(
       Long githubRepoId, String repoName, String ownerName) {
     return new GitHubRepository(githubRepoId, repoName, ownerName);

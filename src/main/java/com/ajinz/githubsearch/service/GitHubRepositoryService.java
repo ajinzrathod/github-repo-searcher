@@ -26,4 +26,8 @@ public class GitHubRepositoryService {
             .toList();
     gitHubRepositoryRepository.saveAll(repositoriesToAdd);
   }
+
+  public List<GitHubRepository> getAllSavedRepositories() {
+    return gitHubRepositoryRepository.findAll();
+  }
 }

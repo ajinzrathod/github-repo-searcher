@@ -212,4 +212,39 @@ class SearchControllerIntegrationTest {
           "Repository with ID " + i + " should exist");
     }
   }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldReturnAllSavedRepositories() throws Exception {
+    // Arrange: Save some test repositories to the database
+    GitHubRepository repo1 = new GitHubRepository(12345L, "spring-boot", "spring-projects");
+    GitHubRepository repo2 = new GitHubRepository(67890L, "spring-framework", "spring-projects");
+    GitHubRepository repo3 = new GitHubRepository(11111L, "react", "facebook");
+
+    List<GitHubRepository> testRepositories = Arrays.asList(repo1, repo2, repo3);
+    gitHubRepositoryService.saveAllGitHubRepositories(testRepositories);
+
+    // Act & Assert: Call the API endpoint and verify the response
+    mockMvc
+        .perform(get("/api/github/repositories"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].id").exists())
+        .andExpect(jsonPath("$[0].name").exists())
+        .andExpect(jsonPath("$[0].owner").exists());
+  }
+
+  @Test
+  void shouldReturnEmptyListWhenNoRepositoriesSaved() throws Exception {
+    // Act & Assert: Call the API endpoint when database is empty
+    mockMvc
+        .perform(get("/api/github/repositories"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$.length()").value(0));
+  }
 }
