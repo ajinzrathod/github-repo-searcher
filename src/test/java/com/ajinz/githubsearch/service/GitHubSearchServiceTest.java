@@ -25,14 +25,11 @@ import reactor.test.StepVerifier;
 class GitHubSearchServiceTest {
 
   @Mock private WebClient.Builder webClientBuilder;
-
   @Mock private WebClient webClient;
-
   @Mock private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
-
   @Mock private WebClient.RequestHeadersSpec requestHeadersSpec;
-
   @Mock private WebClient.ResponseSpec responseSpec;
+  @Mock private GitHubRepositoryService gitHubRepositoryService;
 
   private GitHubSearchService gitHubSearchService;
 
@@ -45,7 +42,8 @@ class GitHubSearchServiceTest {
     when(webClientBuilder.defaultHeader(anyString(), anyString())).thenReturn(webClientBuilder);
     when(webClientBuilder.build()).thenReturn(webClient);
 
-    gitHubSearchService = new GitHubSearchService(webClientBuilder, baseUrl, apiVersion);
+    gitHubSearchService =
+        new GitHubSearchService(webClientBuilder, baseUrl, apiVersion, gitHubRepositoryService);
   }
 
   @Test
@@ -58,12 +56,12 @@ class GitHubSearchServiceTest {
   }
 
   @Test
-  void searchRepositories_WithBasicRequest_ShouldReturnSuccessfulResponse() {
+  void searchRepositories_WithBasicRequest_ShouldReturnSuccessfulResponseAndSaveRepositories() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
 
-    GitHubRepository repository = new GitHubRepository();
+    GitHubRepository repository = new GitHubRepository(1L, "test-repo", "test-owner");
     GitHubSearchResponse expectedResponse = new GitHubSearchResponse(false, List.of(repository));
 
     setupMockWebClientChain();
@@ -76,10 +74,11 @@ class GitHubSearchServiceTest {
         .verifyComplete();
 
     verify(webClient).get();
+    verify(gitHubRepositoryService).saveAllGitHubRepositories(expectedResponse.items());
   }
 
   @Test
-  void searchRepositories_WithLanguageFilter_ShouldIncludeLanguageInQuery() {
+  void searchRepositories_WithLanguageFilter_ShouldIncludeLanguageInQueryButNotSaveEmptyResults() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("spring boot", "java", Sort.STARS, Order.DESC, 1, 10);
@@ -95,12 +94,14 @@ class GitHubSearchServiceTest {
         .expectNext(expectedResponse)
         .verifyComplete();
 
-    // Verify that the URI builder is called
+    // Verify
     verify(requestHeadersUriSpec).uri(any(Function.class));
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @Test
-  void searchRepositories_WithEmptyLanguage_ShouldNotIncludeLanguageInQuery() {
+  void
+      searchRepositories_WithEmptyLanguage_ShouldNotIncludeLanguageInQueryAndNotSaveEmptyResults() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("spring boot", "", Sort.STARS, Order.DESC, 1, 10);
@@ -117,10 +118,12 @@ class GitHubSearchServiceTest {
         .verifyComplete();
 
     verify(requestHeadersUriSpec).uri(any(Function.class));
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @Test
-  void searchRepositories_WithWebClientResponseException_ShouldMapToRuntimeException() {
+  void
+      searchRepositories_WithWebClientResponseException_ShouldMapToRuntimeExceptionAndNotSaveRepositories() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
@@ -141,10 +144,11 @@ class GitHubSearchServiceTest {
                         .getMessage()
                         .contains("An unexpected error occurred while searching repositories"))
         .verify();
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @Test
-  void searchRepositories_WithGenericException_ShouldMapToRuntimeException() {
+  void searchRepositories_WithGenericException_ShouldMapToRuntimeExceptionAndNotSaveRepositories() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
@@ -164,10 +168,11 @@ class GitHubSearchServiceTest {
                         .getMessage()
                         .contains("An unexpected error occurred while searching repositories"))
         .verify();
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @Test
-  void searchRepositories_WithEmptyResponse_ShouldHandleGracefully() {
+  void searchRepositories_WithEmptyResponse_ShouldHandleGracefullyAndNotSaveRepositories() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
@@ -181,10 +186,11 @@ class GitHubSearchServiceTest {
     StepVerifier.create(gitHubSearchService.searchRepositories(request))
         .expectNext(emptyResponse)
         .verifyComplete();
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @Test
-  void searchRepositories_WithComplexQuery_ShouldHandleAllParameters() {
+  void searchRepositories_WithComplexQuery_ShouldHandleAllParametersButNotSaveEmptyResults() {
     // Arrange
     GithubSearchRequest request =
         new GithubSearchRequest("microservices", "kotlin", Sort.UPDATED, Order.ASC, 5, 25);
@@ -200,27 +206,30 @@ class GitHubSearchServiceTest {
         .expectNext(expectedResponse)
         .verifyComplete();
 
-    // Verify the URI building was called
+    // Verify
     verify(requestHeadersUriSpec).uri(any(Function.class));
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @Test
-  void constructor_WithCustomBaseUrlAndApiVersion_ShouldUseProvidedValues() {
+  void searchRepositories_WithIncompleteResults_ShouldNotSaveRepositories() {
     // Arrange
-    String customBaseUrl = "https://api.custom-github.com";
-    String customApiVersion = "2023-01-01";
+    GithubSearchRequest request =
+        new GithubSearchRequest("spring boot", null, Sort.STARS, Order.DESC, 1, 10);
 
-    WebClient.Builder newBuilder = mock(WebClient.Builder.class);
-    when(newBuilder.baseUrl(anyString())).thenReturn(newBuilder);
-    when(newBuilder.defaultHeader(anyString(), anyString())).thenReturn(newBuilder);
-    when(newBuilder.build()).thenReturn(webClient);
+    GitHubRepository repository = new GitHubRepository(1L, "repo1", "owner1");
+    GitHubSearchResponse incompleteResponse = new GitHubSearchResponse(true, List.of(repository));
+
+    setupMockWebClientChain();
+    when(responseSpec.bodyToMono(GitHubSearchResponse.class))
+        .thenReturn(Mono.just(incompleteResponse));
 
     // Act
-    new GitHubSearchService(newBuilder, customBaseUrl, customApiVersion);
+    StepVerifier.create(gitHubSearchService.searchRepositories(request))
+        .expectNext(incompleteResponse)
+        .verifyComplete();
 
-    // Assert
-    verify(newBuilder).baseUrl(customBaseUrl);
-    verify(newBuilder).defaultHeader("X-GitHub-Api-Version", customApiVersion);
+    verify(gitHubRepositoryService, never()).saveAllGitHubRepositories(any());
   }
 
   @SuppressWarnings({"unchecked"})

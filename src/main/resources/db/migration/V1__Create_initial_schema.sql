@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS github_repository (
 );
 
 -- Create indexes only for required filtering and sorting operations
+
+CREATE INDEX idx_github_repository_github_repo_id ON github_repository(github_repo_id);
 CREATE INDEX idx_github_repository_programming_language ON github_repository(programming_language);
 CREATE INDEX idx_github_repository_stars_count ON github_repository(stars_count);
 CREATE INDEX idx_github_repository_forks_count ON github_repository(forks_count);

@@ -12,6 +12,7 @@ import reactor.core.publisher.Mono;
 
 @Service
 public class GitHubSearchService {
+  GitHubRepositoryService gitHubRepositoryService;
 
   private static final Logger logger = LoggerFactory.getLogger(GitHubSearchService.class);
 
@@ -20,13 +21,15 @@ public class GitHubSearchService {
   public GitHubSearchService(
       WebClient.Builder webClientBuilder,
       @Value("${github.api.base-url:https://api.github.com}") String baseUrl,
-      @Value("${github.api.version:2022-11-28}") String apiVersion) {
+      @Value("${github.api.version:2022-11-28}") String apiVersion,
+      GitHubRepositoryService gitHubRepositoryService) {
     this.webClient =
         webClientBuilder
             .baseUrl(baseUrl)
             .defaultHeader("Accept", "application/vnd.github+json")
             .defaultHeader("X-GitHub-Api-Version", apiVersion)
             .build();
+    this.gitHubRepositoryService = gitHubRepositoryService;
   }
 
   public Mono<GitHubSearchResponse> searchRepositories(GithubSearchRequest githubSearchRequest) {
@@ -48,10 +51,17 @@ public class GitHubSearchService {
         .retrieve()
         .bodyToMono(GitHubSearchResponse.class)
         .doOnSuccess(
-            response ->
-                logger.info(
-                    "Successfully retrieved {} repositories",
-                    response != null ? response.items().size() : 0))
+            response -> {
+              logger.info(
+                  "Successfully retrieved {} repositories",
+                  response != null ? response.items().size() : 0);
+
+              if (response != null
+                  && !response.incompleteResults()
+                  && !response.items().isEmpty()) {
+                gitHubRepositoryService.saveAllGitHubRepositories(response.items());
+              }
+            })
         .onErrorMap(
             WebClientResponseException.class,
             ex -> {

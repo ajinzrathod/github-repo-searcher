@@ -55,6 +55,45 @@ public class GitHubRepository {
 
   public GitHubRepository() {}
 
+  // Constructor for testing purposes
+  public GitHubRepository(
+      Long githubRepoId,
+      String repoName,
+      String ownerName,
+      String description,
+      String programmingLanguage,
+      Integer starsCount,
+      Integer forksCount,
+      LocalDateTime gitRepoLastUpdatedDate) {
+    this.githubRepoId = githubRepoId;
+    this.repoName = repoName;
+    this.ownerName = ownerName;
+    this.description = description;
+    this.programmingLanguage = programmingLanguage;
+    this.starsCount = starsCount;
+    this.forksCount = forksCount;
+    this.gitRepoLastUpdatedDate = gitRepoLastUpdatedDate;
+  }
+
+  // Simplified constructor for basic test cases
+  public GitHubRepository(Long githubRepoId, String repoName, String ownerName) {
+    this(
+        githubRepoId,
+        repoName,
+        ownerName,
+        "Test repository description",
+        "Java",
+        100,
+        50,
+        LocalDateTime.now());
+  }
+
+  @PrePersist
+  protected void onCreate() {
+    createdAt = LocalDateTime.now();
+    updatedAt = LocalDateTime.now();
+  }
+
   @PreUpdate
   public void preUpdate() {
     this.updatedAt = LocalDateTime.now();
@@ -70,5 +109,9 @@ public class GitHubRepository {
   @JsonProperty("full_url")
   public String setFullUrl() {
     return "https://github.com/" + this.ownerName + "/" + this.repoName;
+  }
+
+  public Long getGithubRepoId() {
+    return githubRepoId;
   }
 }
