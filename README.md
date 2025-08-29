@@ -53,6 +53,47 @@ curl -X POST http://localhost:8080/api/github/search/repositories \
   }'
 ```
 
+### Get Saved Repositories (GET)
+
+```
+GET /api/github/repositories
+```
+
+Retrieve previously saved repositories from the database with optional filtering and sorting.
+
+**Query Parameters:**
+
+- `language` (optional): Filter repositories by programming language (e.g., `Java`, `Python`, `JavaScript`)
+- `minStars` (optional): Filter repositories with minimum star count (e.g., `1000`)
+- `sort` (optional): Sort results by `stars`, `forks`, `updated`, or `name` (default: `stars`)
+
+**Example Requests:**
+
+```bash
+# Get all saved repositories
+curl http://localhost:8080/api/github/repositories
+
+# Filter by programming language
+curl http://localhost:8080/api/github/repositories?language=Java
+
+# Filter by minimum stars
+curl http://localhost:8080/api/github/repositories?minStars=5000
+
+# Combine filters and custom sorting
+curl http://localhost:8080/api/github/repositories?language=Python&minStars=1000&sort=forks
+
+# Sort by repository name
+curl http://localhost:8080/api/github/repositories?sort=name
+```
+
+**Key Features:**
+
+- Returns repositories previously saved from GitHub API searches
+- Supports filtering by programming language and minimum star count
+- Flexible sorting options (stars, forks, last updated, name)
+- Results are sorted by star count in descending order by default
+- Returns empty array if no repositories match the filters
+
 ## Architecture & Design Patterns
 
 ### 1. **Layered Architecture**
@@ -94,8 +135,8 @@ Create a `.env` file in the project root with the following variables:
 
 ```env
 POSTGRES_DB=postgres
-POSTGRES_USER=githubuser
-POSTGRES_PASSWORD=yourpassword
+POSTGRES_USER=githubsearch_user
+POSTGRES_PASSWORD=your_secure_password_here
 ```
 
 #### 2. Start PostgreSQL

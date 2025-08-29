@@ -44,8 +44,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.postgresql:postgresql'
     implementation 'org.flywaydb:flyway-core'
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql:11.11.2'
-
 	// Test dependencies
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
