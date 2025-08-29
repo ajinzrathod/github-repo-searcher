@@ -22,6 +22,7 @@ Content-Type: application/json
 Search GitHub repositories using a POST request with JSON body.
 
 **Request Body:**
+
 ```json
 {
   "query": "spring boot",
@@ -43,6 +44,7 @@ Search GitHub repositories using a POST request with JSON body.
 - `perPage` (optional): Number of results per page (default: 10, max: 100)
 
 **Example Request:**
+
 ```bash
 curl -X POST http://localhost:8080/api/github/search/repositories \
   -H "Content-Type: application/json" \
@@ -173,12 +175,17 @@ docker-compose up
 
 ### Database Schema
 
-The application automatically creates the required database tables using Flyway migrations on startup. The schema
-includes:
+The application automatically creates the required database tables using **Flyway migrations** on startup. Flyway is
+used for database schema versioning and migration management.
+
+The schema includes:
 
 - Repository details storage (ID, name, description, owner, language, stars, forks, etc.)
 - Full GitHub API response storage for complete data preservation
 - Optimized indexes for filtering and sorting operations
+
+Migration files are located in `src/main/resources/db/migration/` and are automatically applied when the application
+starts.
 
 ### Stopping the Application
 
