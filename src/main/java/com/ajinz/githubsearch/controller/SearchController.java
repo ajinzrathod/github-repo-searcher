@@ -46,12 +46,21 @@ public class SearchController {
   }
 
   @GetMapping("/repositories")
-  public ResponseEntity<List<GitHubRepository>> getAllSavedRepositories() {
-    logger.info("Received GET request for all saved repositories");
+  public ResponseEntity<List<GitHubRepository>> getAllSavedRepositories(
+      @RequestParam(required = false) String language,
+      @RequestParam(required = false) Integer minStars,
+      @RequestParam(defaultValue = "stars") String sort) {
 
-    List<GitHubRepository> savedRepositories = gitHubRepositoryService.getAllSavedRepositories();
+    logger.info(
+        "Received GET request for repositories with filters - language: {}, minStars: {}, sort: {}",
+        language,
+        minStars,
+        sort);
 
-    logger.info("Returning {} saved repositories", savedRepositories.size());
-    return ResponseEntity.ok(savedRepositories);
+    List<GitHubRepository> repositories =
+        gitHubRepositoryService.getFilteredRepositories(language, minStars, sort);
+
+    logger.info("Returning {} filtered repositories", repositories.size());
+    return ResponseEntity.ok(repositories);
   }
 }

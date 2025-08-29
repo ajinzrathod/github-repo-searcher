@@ -30,4 +30,13 @@ public class GitHubRepositoryService {
   public List<GitHubRepository> getAllSavedRepositories() {
     return gitHubRepositoryRepository.findAll();
   }
+
+  public List<GitHubRepository> getFilteredRepositories(
+      String language, Integer minStars, String sortBy) {
+    if (sortBy == null || sortBy.isEmpty()) {
+      sortBy = "stars";
+    }
+
+    return gitHubRepositoryRepository.findRepositoriesWithFilters(language, minStars, sortBy);
+  }
 }

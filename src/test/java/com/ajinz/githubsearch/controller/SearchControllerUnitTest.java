@@ -112,16 +112,17 @@ class SearchControllerUnitTest {
     List<com.ajinz.githubsearch.dto.github.GitHubRepository> mockRepositories =
         Collections.emptyList();
 
-    when(gitHubRepositoryService.getAllSavedRepositories()).thenReturn(mockRepositories);
+    when(gitHubRepositoryService.getFilteredRepositories(null, null, "stars"))
+        .thenReturn(mockRepositories);
 
     // When
     ResponseEntity<List<com.ajinz.githubsearch.dto.github.GitHubRepository>> response =
-        searchController.getAllSavedRepositories();
+        searchController.getAllSavedRepositories(null, null, "stars");
 
     // Then
     assertNotNull(response);
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals(mockRepositories, response.getBody());
-    verify(gitHubRepositoryService).getAllSavedRepositories();
+    verify(gitHubRepositoryService).getFilteredRepositories(null, null, "stars");
   }
 }
