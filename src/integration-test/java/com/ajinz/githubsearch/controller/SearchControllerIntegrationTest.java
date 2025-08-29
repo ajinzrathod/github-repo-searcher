@@ -1,5 +1,6 @@
 package com.ajinz.githubsearch.controller;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,6 +14,7 @@ import com.ajinz.githubsearch.dto.github.Sort;
 import com.ajinz.githubsearch.repository.GitHubRepositoryRepository;
 import com.ajinz.githubsearch.service.GitHubRepositoryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -246,5 +248,326 @@ class SearchControllerIntegrationTest {
         .andExpect(content().contentType(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$").isArray())
         .andExpect(jsonPath("$.length()").value(0));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldFilterRepositoriesByLanguage() throws Exception {
+    // Arrange: Create test repositories with different languages
+    GitHubRepository javaRepo1 =
+        createTestRepositoryWithDetails(1L, "spring-boot", "Java", 45000, 15000);
+    GitHubRepository javaRepo2 =
+        createTestRepositoryWithDetails(2L, "hibernate-orm", "Java", 25000, 8000);
+    GitHubRepository pythonRepo =
+        createTestRepositoryWithDetails(3L, "django", "Python", 65000, 25000);
+    GitHubRepository jsRepo =
+        createTestRepositoryWithDetails(4L, "react", "JavaScript", 200000, 40000);
+
+    List<GitHubRepository> allRepositories =
+        Arrays.asList(javaRepo1, javaRepo2, pythonRepo, jsRepo);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Filter by Java language
+    mockMvc
+        .perform(get("/api/github/repositories").param("language", "Java"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].language").value("Java"))
+        .andExpect(jsonPath("$[1].language").value("Java"));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldFilterRepositoriesByMinStars() throws Exception {
+    // Arrange: Create test repositories with different star counts
+    GitHubRepository lowStarRepo =
+        createTestRepositoryWithDetails(1L, "small-project", "Java", 500, 100);
+    GitHubRepository mediumStarRepo =
+        createTestRepositoryWithDetails(2L, "medium-project", "Python", 25000, 8000);
+    GitHubRepository highStarRepo1 =
+        createTestRepositoryWithDetails(3L, "popular-project", "JavaScript", 65000, 25000);
+    GitHubRepository highStarRepo2 =
+        createTestRepositoryWithDetails(4L, "very-popular", "Python", 200000, 40000);
+
+    List<GitHubRepository> allRepositories =
+        Arrays.asList(lowStarRepo, mediumStarRepo, highStarRepo1, highStarRepo2);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Filter by minimum 50000 stars
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "50000"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].stargazers_count").value(greaterThanOrEqualTo(50000)))
+        .andExpect(jsonPath("$[1].stargazers_count").value(greaterThanOrEqualTo(50000)));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldFilterRepositoriesByLanguageAndMinStars() throws Exception {
+    // Arrange: Create test repositories
+    GitHubRepository javaLowStars =
+        createTestRepositoryWithDetails(1L, "java-small", "Java", 1000, 200);
+    GitHubRepository javaHighStars =
+        createTestRepositoryWithDetails(2L, "java-popular", "Java", 75000, 15000);
+    GitHubRepository pythonLowStars =
+        createTestRepositoryWithDetails(3L, "python-small", "Python", 2000, 500);
+    GitHubRepository pythonHighStars =
+        createTestRepositoryWithDetails(4L, "python-popular", "Python", 85000, 25000);
+    GitHubRepository jsHighStars =
+        createTestRepositoryWithDetails(5L, "js-popular", "JavaScript", 95000, 30000);
+
+    List<GitHubRepository> allRepositories =
+        Arrays.asList(javaLowStars, javaHighStars, pythonLowStars, pythonHighStars, jsHighStars);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Filter by Python language and minimum 50000 stars
+    mockMvc
+        .perform(
+            get("/api/github/repositories").param("language", "Python").param("minStars", "50000"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].language").value("Python"))
+        .andExpect(jsonPath("$[0].stargazers_count").value(85000))
+        .andExpect(jsonPath("$[0].name").value("python-popular"));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldSortRepositoriesByStarsDescending() throws Exception {
+    // Arrange: Create repositories with different star counts
+    GitHubRepository repo1 =
+        createTestRepositoryWithDetails(1L, "repo-medium", "Java", 25000, 8000);
+    GitHubRepository repo2 =
+        createTestRepositoryWithDetails(2L, "repo-highest", "Python", 85000, 25000);
+    GitHubRepository repo3 =
+        createTestRepositoryWithDetails(3L, "repo-lowest", "JavaScript", 5000, 2000);
+
+    List<GitHubRepository> allRepositories = Arrays.asList(repo1, repo2, repo3);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Default sort should be by stars descending
+    mockMvc
+        .perform(get("/api/github/repositories"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].stargazers_count").value(85000))
+        .andExpect(jsonPath("$[1].stargazers_count").value(25000))
+        .andExpect(jsonPath("$[2].stargazers_count").value(5000));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldSortRepositoriesByForks() throws Exception {
+    // Arrange: Create repositories with different fork counts
+    GitHubRepository repo1 =
+        createTestRepositoryWithDetails(1L, "repo-low-forks", "Java", 25000, 5000);
+    GitHubRepository repo2 =
+        createTestRepositoryWithDetails(2L, "repo-high-forks", "Python", 30000, 40000);
+    GitHubRepository repo3 =
+        createTestRepositoryWithDetails(3L, "repo-medium-forks", "JavaScript", 35000, 15000);
+
+    List<GitHubRepository> allRepositories = Arrays.asList(repo1, repo2, repo3);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Sort by forks descending
+    mockMvc
+        .perform(get("/api/github/repositories").param("sort", "forks"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].forks_count").value(40000))
+        .andExpect(jsonPath("$[1].forks_count").value(15000))
+        .andExpect(jsonPath("$[2].forks_count").value(5000));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldSortRepositoriesByName() throws Exception {
+    // Arrange: Create repositories with different names
+    GitHubRepository repoZ =
+        createTestRepositoryWithDetails(1L, "zebra-project", "Java", 25000, 8000);
+    GitHubRepository repoA =
+        createTestRepositoryWithDetails(2L, "alpha-project", "Python", 30000, 10000);
+    GitHubRepository repoM =
+        createTestRepositoryWithDetails(3L, "middle-project", "JavaScript", 35000, 12000);
+
+    List<GitHubRepository> allRepositories = Arrays.asList(repoZ, repoA, repoM);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Sort by name ascending
+    mockMvc
+        .perform(get("/api/github/repositories").param("sort", "name"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].name").value("alpha-project"))
+        .andExpect(jsonPath("$[1].name").value("middle-project"))
+        .andExpect(jsonPath("$[2].name").value("zebra-project"));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldReturnEmptyResultWhenNoRepositoriesMatchFilter() throws Exception {
+    // Arrange: Create repositories that won't match the filter
+    GitHubRepository javaRepo =
+        createTestRepositoryWithDetails(1L, "java-project", "Java", 1000, 200);
+    GitHubRepository pythonRepo =
+        createTestRepositoryWithDetails(2L, "python-project", "Python", 2000, 500);
+
+    List<GitHubRepository> allRepositories = Arrays.asList(javaRepo, pythonRepo);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: Filter by non-existent language
+    mockMvc
+        .perform(get("/api/github/repositories").param("language", "Rust"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(0));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldReturnAllRepositoriesWhenNoFiltersApplied() throws Exception {
+    // Arrange: Create diverse repositories
+    GitHubRepository repo1 =
+        createTestRepositoryWithDetails(1L, "project-one", "Java", 15000, 3000);
+    GitHubRepository repo2 =
+        createTestRepositoryWithDetails(2L, "project-two", "Python", 25000, 8000);
+    GitHubRepository repo3 =
+        createTestRepositoryWithDetails(3L, "project-three", "JavaScript", 35000, 12000);
+
+    List<GitHubRepository> allRepositories = Arrays.asList(repo1, repo2, repo3);
+    gitHubRepositoryService.saveAllGitHubRepositories(allRepositories);
+
+    // Act & Assert: No filters should return all repositories
+    mockMvc
+        .perform(get("/api/github/repositories"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(3));
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldHandleComplexFilteringScenario() throws Exception {
+    // Arrange: Create a comprehensive dataset
+    GitHubRepository[] repositories = {
+      createTestRepositoryWithDetails(1L, "spring-boot", "Java", 65000, 15000),
+      createTestRepositoryWithDetails(2L, "hibernate-orm", "Java", 25000, 8000),
+      createTestRepositoryWithDetails(3L, "small-java-lib", "Java", 500, 100),
+      createTestRepositoryWithDetails(4L, "django", "Python", 70000, 25000),
+      createTestRepositoryWithDetails(5L, "flask", "Python", 58000, 18000),
+      createTestRepositoryWithDetails(6L, "python-util", "Python", 1200, 300),
+      createTestRepositoryWithDetails(7L, "react", "JavaScript", 200000, 40000),
+      createTestRepositoryWithDetails(8L, "vue", "JavaScript", 195000, 35000),
+      createTestRepositoryWithDetails(9L, "small-js-tool", "JavaScript", 800, 150)
+    };
+
+    gitHubRepositoryService.saveAllGitHubRepositories(Arrays.asList(repositories));
+
+    // Test 1: Filter Java repositories with at least 20000 stars, sorted by stars
+    mockMvc
+        .perform(
+            get("/api/github/repositories")
+                .param("language", "Java")
+                .param("minStars", "20000")
+                .param("sort", "stars"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].stargazers_count").value(65000))
+        .andExpect(jsonPath("$[1].stargazers_count").value(25000));
+
+    // Test 2: Filter Python repositories with at least 50000 stars, sorted by name
+    mockMvc
+        .perform(
+            get("/api/github/repositories")
+                .param("language", "Python")
+                .param("minStars", "50000")
+                .param("sort", "name"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].name").value("django"))
+        .andExpect(jsonPath("$[1].name").value("flask"));
+
+    // Test 3: Filter all repositories with at least 100000 stars
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "100000"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].language").value("JavaScript"))
+        .andExpect(jsonPath("$[1].language").value("JavaScript"));
+  }
+
+  @Test
+  void shouldHandleInvalidMinStarsParameter() throws Exception {
+    // Act & Assert: Invalid minStars parameter should return internal server error
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "not-a-number"))
+        .andExpect(status().isInternalServerError());
+  }
+
+  @Test
+  @Transactional
+  @Rollback
+  void shouldHandleEdgeCaseFilters() throws Exception {
+    // Arrange: Create repositories for edge case testing
+    GitHubRepository repo1 = createTestRepositoryWithDetails(1L, "zero-stars", "Java", 0, 0);
+    GitHubRepository repo2 =
+        createTestRepositoryWithDetails(2L, "negative-test", "Python", 1000, 200);
+
+    List<GitHubRepository> repositories = Arrays.asList(repo1, repo2);
+    gitHubRepositoryService.saveAllGitHubRepositories(repositories);
+
+    // Test 1: Filter with 0 minStars (should include zero-star repo)
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "0"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2));
+
+    // Test 2: Filter with negative minStars (should include all repos)
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "-100"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2));
+
+    // Test 3: Filter with very high minStars (should return empty)
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "999999"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(0));
+  }
+
+  private GitHubRepository createTestRepositoryWithDetails(
+      Long id, String name, String language, int stars, int forks) {
+    return new GitHubRepository(
+        id,
+        name,
+        "testowner",
+        "Test repository: " + name,
+        language,
+        stars,
+        forks,
+        LocalDateTime.now().minusDays(id) // Different update dates for sorting tests
+        );
   }
 }

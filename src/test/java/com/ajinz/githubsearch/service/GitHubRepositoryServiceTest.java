@@ -7,28 +7,37 @@ import static org.mockito.Mockito.*;
 
 import com.ajinz.githubsearch.dto.github.GitHubRepository;
 import com.ajinz.githubsearch.repository.GitHubRepositoryRepository;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class GitHubRepositoryServiceTest {
 
   @Mock private GitHubRepositoryRepository gitHubRepositoryRepository;
 
-  private GitHubRepositoryService gitHubRepositoryService;
+  @InjectMocks private GitHubRepositoryService gitHubRepositoryService;
+
+  private List<GitHubRepository> testRepositories;
 
   @BeforeEach
   void setUp() {
-    try (var mocks = MockitoAnnotations.openMocks(this)) {
-      gitHubRepositoryService = new GitHubRepositoryService(gitHubRepositoryRepository);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to initialize mocks", e);
-    }
+    // Create test repositories with different languages and star counts
+    GitHubRepository javaRepo1 = createTestRepository(1L, "spring-boot", "Java", 45000, 15000);
+    GitHubRepository javaRepo2 = createTestRepository(2L, "hibernate-orm", "Java", 25000, 8000);
+    GitHubRepository pythonRepo1 = createTestRepository(3L, "django", "Python", 65000, 25000);
+    GitHubRepository pythonRepo2 = createTestRepository(4L, "flask", "Python", 58000, 18000);
+    GitHubRepository jsRepo = createTestRepository(5L, "react", "JavaScript", 200000, 40000);
+
+    testRepositories = Arrays.asList(javaRepo1, javaRepo2, pythonRepo1, pythonRepo2, jsRepo);
   }
 
   @Test
@@ -247,8 +256,148 @@ class GitHubRepositoryServiceTest {
     verify(gitHubRepositoryRepository).findAll();
   }
 
+  @Test
+  void getFilteredRepositories_WithNoFilters_ShouldReturnAllRepositories() {
+    // Arrange
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters(null, null, "stars"))
+        .thenReturn(testRepositories);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories(null, null, "stars");
+
+    // Assert
+    assertEquals(5, result.size());
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters(null, null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithLanguageFilter_ShouldFilterByLanguage() {
+    // Arrange
+    List<GitHubRepository> javaRepositories =
+        Arrays.asList(testRepositories.get(0), testRepositories.get(1));
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters("Java", null, "stars"))
+        .thenReturn(javaRepositories);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories("Java", null, "stars");
+
+    // Assert
+    assertEquals(2, result.size());
+    assertTrue(result.stream().allMatch(repo -> "Java".equals(repo.getProgrammingLanguage())));
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters("Java", null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithMinStarsFilter_ShouldFilterByMinStars() {
+    // Arrange
+    List<GitHubRepository> highStarRepositories =
+        Arrays.asList(testRepositories.get(2), testRepositories.get(3), testRepositories.get(4));
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters(null, 50000, "stars"))
+        .thenReturn(highStarRepositories);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories(null, 50000, "stars");
+
+    // Assert
+    assertEquals(3, result.size());
+    assertTrue(result.stream().allMatch(repo -> repo.getStarsCount() >= 50000));
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters(null, 50000, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithLanguageAndMinStarsFilter_ShouldApplyBothFilters() {
+    // Arrange
+    List<GitHubRepository> filteredRepositories =
+        Arrays.asList(testRepositories.get(2), testRepositories.get(3));
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters("Python", 50000, "stars"))
+        .thenReturn(filteredRepositories);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories("Python", 50000, "stars");
+
+    // Assert
+    assertEquals(2, result.size());
+    assertTrue(
+        result.stream()
+            .allMatch(
+                repo ->
+                    "Python".equals(repo.getProgrammingLanguage())
+                        && repo.getStarsCount() >= 50000));
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters("Python", 50000, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithCustomSortBy_ShouldPassSortParameter() {
+    // Arrange
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters(null, null, "forks"))
+        .thenReturn(testRepositories);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories(null, null, "forks");
+
+    // Assert
+    assertEquals(5, result.size());
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters(null, null, "forks");
+  }
+
+  @Test
+  void getFilteredRepositories_WithNullSortBy_ShouldDefaultToStars() {
+    // Arrange
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters(null, null, "stars"))
+        .thenReturn(testRepositories);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories(null, null, null);
+
+    // Assert
+    assertEquals(5, result.size());
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters(null, null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithEmptySortBy_ShouldDefaultToStars() {
+    // Arrange
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters(null, null, "stars"))
+        .thenReturn(testRepositories);
+
+    // Act
+    List<GitHubRepository> result = gitHubRepositoryService.getFilteredRepositories(null, null, "");
+
+    // Assert
+    assertEquals(5, result.size());
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters(null, null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithAllParametersSet_ShouldPassAllParameters() {
+    // Arrange
+    List<GitHubRepository> filteredResult = Collections.singletonList(testRepositories.getFirst());
+    when(gitHubRepositoryRepository.findRepositoriesWithFilters("Java", 30000, "name"))
+        .thenReturn(filteredResult);
+
+    // Act
+    List<GitHubRepository> result =
+        gitHubRepositoryService.getFilteredRepositories("Java", 30000, "name");
+
+    // Assert
+    assertEquals(1, result.size());
+    verify(gitHubRepositoryRepository).findRepositoriesWithFilters("Java", 30000, "name");
+  }
+
   private GitHubRepository createGitHubRepository(
       Long githubRepoId, String repoName, String ownerName) {
     return new GitHubRepository(githubRepoId, repoName, ownerName);
+  }
+
+  private GitHubRepository createTestRepository(
+      Long id, String name, String language, int stars, int forks) {
+    return new GitHubRepository(
+        id, name, "testowner", "Test repository", language, stars, forks, LocalDateTime.now());
   }
 }

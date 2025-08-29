@@ -115,17 +115,16 @@ public class GitHubRepository {
     return githubRepoId;
   }
 
-  // Additional getters for testing purposes
   public String getRepoName() {
     return repoName;
   }
 
-  public String getOwnerName() {
-    return ownerName;
-  }
-
   public String getDescription() {
     return description;
+  }
+
+  public String getOwnerName() {
+    return ownerName;
   }
 
   public String getProgrammingLanguage() {
@@ -142,5 +141,13 @@ public class GitHubRepository {
 
   public LocalDateTime getGitRepoLastUpdatedDate() {
     return gitRepoLastUpdatedDate;
+  }
+
+  public LocalDateTime getCreatedAt() {
+    return createdAt;
+  }
+
+  public LocalDateTime getUpdatedAt() {
+    return updatedAt;
   }
 }

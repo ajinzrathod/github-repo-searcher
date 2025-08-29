@@ -1,128 +1,280 @@
 package com.ajinz.githubsearch.controller;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.ajinz.githubsearch.dto.github.GitHubSearchResponse;
-import com.ajinz.githubsearch.dto.github.GithubSearchRequest;
-import com.ajinz.githubsearch.dto.github.Order;
-import com.ajinz.githubsearch.dto.github.Sort;
+import com.ajinz.githubsearch.dto.github.GitHubRepository;
 import com.ajinz.githubsearch.service.GitHubRepositoryService;
 import com.ajinz.githubsearch.service.GitHubSearchService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import reactor.core.publisher.Mono;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
+@WebMvcTest(SearchController.class)
 class SearchControllerUnitTest {
 
-  @Mock private GitHubSearchService gitHubSearchService;
-  @Mock private GitHubRepositoryService gitHubRepositoryService;
+  @Autowired private MockMvc mockMvc;
 
-  private SearchController searchController;
+  @Autowired private ObjectMapper objectMapper;
+
+  @MockBean private GitHubRepositoryService gitHubRepositoryService;
+
+  @MockBean private GitHubSearchService gitHubSearchService;
+
+  private List<GitHubRepository> testRepositories;
 
   @BeforeEach
   void setUp() {
-    try (var mocks = MockitoAnnotations.openMocks(this)) {
-      searchController = new SearchController(gitHubSearchService, gitHubRepositoryService);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    // Create test repositories with different languages and star counts
+    GitHubRepository javaRepo1 = createTestRepository(1L, "spring-boot", "Java", 45000, 15000);
+    GitHubRepository javaRepo2 = createTestRepository(2L, "hibernate-orm", "Java", 25000, 8000);
+    GitHubRepository pythonRepo1 = createTestRepository(3L, "django", "Python", 65000, 25000);
+    GitHubRepository pythonRepo2 = createTestRepository(4L, "flask", "Python", 58000, 18000);
+    GitHubRepository jsRepo = createTestRepository(5L, "react", "JavaScript", 200000, 40000);
+
+    testRepositories = Arrays.asList(javaRepo1, javaRepo2, pythonRepo1, pythonRepo2, jsRepo);
   }
 
   @Test
-  void shouldReturnSuccessfulResponseForPostRequest() {
-    // Given
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(false, Collections.emptyList());
-    GithubSearchRequest searchRequest =
-        new GithubSearchRequest("react", "javascript", Sort.FORKS, Order.DESC, 1, 5);
-
-    when(gitHubSearchService.searchRepositories(any(GithubSearchRequest.class)))
-        .thenReturn(Mono.just(mockResponse));
-
-    // When
-    Mono<ResponseEntity<GitHubSearchResponse>> result =
-        searchController.searchRepositories(searchRequest);
-
-    // Then
-    ResponseEntity<GitHubSearchResponse> response = result.block();
-    assertNotNull(response);
-    assertEquals(HttpStatus.OK, response.getStatusCode());
-    assertEquals(mockResponse, response.getBody());
-    verify(gitHubSearchService).searchRepositories(any(GithubSearchRequest.class));
-  }
-
-  @Test
-  void shouldHandleServiceErrorForPostRequest() {
-    // Given
-    GithubSearchRequest searchRequest =
-        new GithubSearchRequest("react", null, Sort.FORKS, Order.DESC, 1, 10);
-
-    when(gitHubSearchService.searchRepositories(any(GithubSearchRequest.class)))
-        .thenReturn(Mono.error(new RuntimeException("Service error")));
-
-    // When
-    Mono<ResponseEntity<GitHubSearchResponse>> result =
-        searchController.searchRepositories(searchRequest);
-
-    // Then
-    ResponseEntity<GitHubSearchResponse> response = result.block();
-    assertNotNull(response);
-    assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-  }
-
-  @Test
-  void shouldReturnHealthStatus() {
-    // When
-    ResponseEntity<String> response = searchController.health();
-
-    // Then
-    assertEquals(HttpStatus.OK, response.getStatusCode());
-    assertEquals("OK", response.getBody());
-  }
-
-  @Test
-  void shouldPassCorrectSearchRequestToService() {
-    // Given
-    GitHubSearchResponse mockResponse = new GitHubSearchResponse(false, Collections.emptyList());
-    GithubSearchRequest searchRequest =
-        new GithubSearchRequest("spring boot", "java", Sort.FORKS, Order.DESC, 2, 20);
-
-    when(gitHubSearchService.searchRepositories(any(GithubSearchRequest.class)))
-        .thenReturn(Mono.just(mockResponse));
-
-    // When
-    searchController.searchRepositories(searchRequest).block();
-
-    // Then - Verify the SearchRequest was passed correctly
-    verify(gitHubSearchService).searchRepositories(searchRequest);
-  }
-
-  @Test
-  void shouldReturnAllSavedRepositories() {
-    // Given
-    List<com.ajinz.githubsearch.dto.github.GitHubRepository> mockRepositories =
-        Collections.emptyList();
-
+  void getFilteredRepositories_WithNoFilters_ShouldReturnAllRepositories() throws Exception {
+    // Arrange
     when(gitHubRepositoryService.getFilteredRepositories(null, null, "stars"))
-        .thenReturn(mockRepositories);
+        .thenReturn(testRepositories);
 
-    // When
-    ResponseEntity<List<com.ajinz.githubsearch.dto.github.GitHubRepository>> response =
-        searchController.getAllSavedRepositories(null, null, "stars");
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(5))
+        .andExpect(jsonPath("$[0].name").value("spring-boot"))
+        .andExpect(jsonPath("$[0].language").value("Java"))
+        .andExpect(jsonPath("$[0].stargazers_count").value(45000));
 
-    // Then
-    assertNotNull(response);
-    assertEquals(HttpStatus.OK, response.getStatusCode());
-    assertEquals(mockRepositories, response.getBody());
     verify(gitHubRepositoryService).getFilteredRepositories(null, null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithLanguageFilter_ShouldFilterByLanguage() throws Exception {
+    // Arrange
+    List<GitHubRepository> javaRepositories =
+        Arrays.asList(testRepositories.get(0), testRepositories.get(1));
+    when(gitHubRepositoryService.getFilteredRepositories("Java", null, "stars"))
+        .thenReturn(javaRepositories);
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("language", "Java"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].language").value("Java"))
+        .andExpect(jsonPath("$[1].language").value("Java"));
+
+    verify(gitHubRepositoryService).getFilteredRepositories("Java", null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithMinStarsFilter_ShouldFilterByMinStars() throws Exception {
+    // Arrange
+    List<GitHubRepository> highStarRepositories =
+        Arrays.asList(testRepositories.get(2), testRepositories.get(3), testRepositories.get(4));
+    when(gitHubRepositoryService.getFilteredRepositories(null, 50000, "stars"))
+        .thenReturn(highStarRepositories);
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "50000"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].stargazers_count").value(65000))
+        .andExpect(jsonPath("$[1].stargazers_count").value(58000))
+        .andExpect(jsonPath("$[2].stargazers_count").value(200000));
+
+    verify(gitHubRepositoryService).getFilteredRepositories(null, 50000, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithLanguageAndMinStarsFilter_ShouldApplyBothFilters()
+      throws Exception {
+    // Arrange
+    List<GitHubRepository> filteredRepositories =
+        Arrays.asList(testRepositories.get(2), testRepositories.get(3));
+    when(gitHubRepositoryService.getFilteredRepositories("Python", 50000, "stars"))
+        .thenReturn(filteredRepositories);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/github/repositories").param("language", "Python").param("minStars", "50000"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].language").value("Python"))
+        .andExpect(jsonPath("$[0].stargazers_count").value(65000))
+        .andExpect(jsonPath("$[1].language").value("Python"))
+        .andExpect(jsonPath("$[1].stargazers_count").value(58000));
+
+    verify(gitHubRepositoryService).getFilteredRepositories("Python", 50000, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithCustomSortParameter_ShouldPassSortToService() throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories(null, null, "forks"))
+        .thenReturn(testRepositories);
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("sort", "forks"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(5));
+
+    verify(gitHubRepositoryService).getFilteredRepositories(null, null, "forks");
+  }
+
+  @Test
+  void getFilteredRepositories_WithAllParameters_ShouldPassAllToService() throws Exception {
+    // Arrange
+    List<GitHubRepository> filteredResult = Arrays.asList(testRepositories.get(0));
+    when(gitHubRepositoryService.getFilteredRepositories("Java", 30000, "name"))
+        .thenReturn(filteredResult);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/github/repositories")
+                .param("language", "Java")
+                .param("minStars", "30000")
+                .param("sort", "name"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].name").value("spring-boot"));
+
+    verify(gitHubRepositoryService).getFilteredRepositories("Java", 30000, "name");
+  }
+
+  @Test
+  void getFilteredRepositories_WithInvalidMinStars_ShouldReturnInternalServerError()
+      throws Exception {
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "invalid"))
+        .andExpect(status().isInternalServerError());
+
+    verify(gitHubRepositoryService, never()).getFilteredRepositories(any(), any(), any());
+  }
+
+  @Test
+  void getFilteredRepositories_WithNegativeMinStars_ShouldProcessNormally() throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories(null, -100, "stars"))
+        .thenReturn(testRepositories);
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("minStars", "-100"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+    verify(gitHubRepositoryService).getFilteredRepositories(null, -100, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithEmptyLanguage_ShouldTreatAsNull() throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories("", null, "stars"))
+        .thenReturn(testRepositories);
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("language", ""))
+        .andExpect(status().isOk());
+
+    verify(gitHubRepositoryService).getFilteredRepositories("", null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithEmptyResult_ShouldReturnEmptyArray() throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories("NonExistentLanguage", 999999, "stars"))
+        .thenReturn(Collections.emptyList());
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/github/repositories")
+                .param("language", "NonExistentLanguage")
+                .param("minStars", "999999"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(0));
+
+    verify(gitHubRepositoryService).getFilteredRepositories("NonExistentLanguage", 999999, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_ServiceThrowsException_ShouldReturn500() throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories(any(), any(), any()))
+        .thenThrow(new RuntimeException("Database connection error"));
+
+    // Act & Assert
+    mockMvc.perform(get("/api/github/repositories")).andExpect(status().isInternalServerError());
+
+    verify(gitHubRepositoryService).getFilteredRepositories(null, null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithSpecialCharactersInLanguage_ShouldHandleGracefully()
+      throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories("C++", null, "stars"))
+        .thenReturn(Collections.emptyList());
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/github/repositories").param("language", "C++"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(0));
+
+    verify(gitHubRepositoryService).getFilteredRepositories("C++", null, "stars");
+  }
+
+  @Test
+  void getFilteredRepositories_WithVeryLargeMinStars_ShouldProcessNormally() throws Exception {
+    // Arrange
+    when(gitHubRepositoryService.getFilteredRepositories(null, Integer.MAX_VALUE, "stars"))
+        .thenReturn(Collections.emptyList());
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/github/repositories").param("minStars", String.valueOf(Integer.MAX_VALUE)))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.length()").value(0));
+
+    verify(gitHubRepositoryService).getFilteredRepositories(null, Integer.MAX_VALUE, "stars");
+  }
+
+  private GitHubRepository createTestRepository(
+      Long id, String name, String language, int stars, int forks) {
+    return new GitHubRepository(
+        id, name, "testowner", "Test repository", language, stars, forks, LocalDateTime.now());
   }
 }
