@@ -57,6 +57,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+    // Ensure tests always run and generate events
+    outputs.upToDateWhen { false }
 }
 
 tasks.register('integrationTest', Test) {
@@ -66,4 +68,6 @@ tasks.register('integrationTest', Test) {
     classpath = sourceSets.integrationTest.runtimeClasspath
     shouldRunAfter tasks.test
     useJUnitPlatform()
+    // Ensure integration tests always run and generate events
+    outputs.upToDateWhen { false }
 }
